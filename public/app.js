@@ -5,6 +5,7 @@ const statusEl = document.getElementById('status');
 const talkBtn = document.getElementById('talkBtn');
 const talkBtnLabel = document.getElementById('talkBtnLabel');
 const installBtn = document.getElementById('installBtn');
+const topMenuBtn = document.getElementById('topMenuBtn');
 const chatToggle = document.getElementById('chatToggle');
 const replayVoiceBtn = document.getElementById('replayVoiceBtn');
 const voiceScreen = document.getElementById('voiceScreen');
@@ -28,7 +29,6 @@ const stopSpeakingBar = document.getElementById('stopSpeakingBar');
 const stopSpeakingBtn = document.getElementById('stopSpeakingBtn');
 const composer = document.getElementById('composer');
 const input = document.getElementById('input');
-const modelNameEl = document.getElementById('modelName');
 const memStatusEl = document.getElementById('memStatus');
 const clockEl = document.getElementById('clock');
 
@@ -73,9 +73,8 @@ setInterval(() => {
 }, 1000);
 
 fetch('/api/health').then((r) => r.json()).then((d) => {
-  modelNameEl.textContent = d.model || '—';
   memStatusEl.textContent = d.memory ? 'ACTIVA' : 'INACTIVA';
-}).catch(() => { modelNameEl.textContent = 'sin conexión'; });
+}).catch(() => {});
 
 // ============ Configuración (nombre del asistente, cómo te llama, voz) ============
 function applyAssistantName(name) {
@@ -213,7 +212,6 @@ async function refreshConversations() {
     convList.appendChild(item);
   });
 
-  // Si no hay conversación activa todavía, usa la más reciente o crea una.
   if (!currentConversationId && conversations.length > 0) {
     selectConversation(conversations[0].id);
   } else if (conversations.length === 0) {
@@ -257,6 +255,7 @@ function closeChatScreen() {
 }
 
 chatToggle.addEventListener('click', openChatScreen);
+topMenuBtn.addEventListener('click', openChatScreen);
 backToVoice.addEventListener('click', closeChatScreen);
 
 // ============ Cajón de conversaciones (móvil) ============
@@ -354,6 +353,7 @@ function setState(next) {
 
 stopSpeakingBtn.addEventListener('click', () => {
   window.speechSynthesis.cancel();
+  if (speechKeepAliveInterval) { clearInterval(speechKeepAliveInterval); speechKeepAliveInterval = null; }
   setState('idle');
   if (conversationActive) startListening();
 });
@@ -372,7 +372,7 @@ function formatMessage(text) {
 }
 
 // Quita los símbolos de markdown (**negrita**, *cursiva*, etc.) antes de mandarlo a voz,
-// para que Jarvis diga la palabra normal en vez de "asterisco, asterisco, palabra".
+// para que Aeris diga la palabra normal en vez de "asterisco, asterisco, palabra".
 function cleanForSpeech(text) {
   return text
     .replace(/\*\*(.+?)\*\*/g, '$1')
@@ -453,6 +453,8 @@ async function sendMessage(text) {
 }
 
 // ============ Voz: síntesis (TTS) ============
+let speechKeepAliveInterval = null;
+
 function speak(rawText) {
   if (!('speechSynthesis' in window)) { setState('idle'); return; }
   const text = cleanForSpeech(rawText);
@@ -468,9 +470,27 @@ function speak(rawText) {
     utter.lang = 'es-MX';
   }
 
-  utter.onstart = () => setState('speaking');
-  utter.onend = () => { setState('idle'); if (conversationActive) startListening(); };
-  utter.onerror = () => { setState('idle'); if (conversationActive) startListening(); };
+  function stopKeepAlive() {
+    if (speechKeepAliveInterval) {
+      clearInterval(speechKeepAliveInterval);
+      speechKeepAliveInterval = null;
+    }
+  }
+
+  utter.onstart = () => {
+    setState('speaking');
+    // Chrome tiene un bug: corta la voz a los ~15s en frases largas si no la "despiertas".
+    // Truco: pausar y reanudar cada poco evita que se corte.
+    stopKeepAlive();
+    speechKeepAliveInterval = setInterval(() => {
+      if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+        window.speechSynthesis.pause();
+        window.speechSynthesis.resume();
+      }
+    }, 10000);
+  };
+  utter.onend = () => { stopKeepAlive(); setState('idle'); if (conversationActive) startListening(); };
+  utter.onerror = () => { stopKeepAlive(); setState('idle'); if (conversationActive) startListening(); };
 
   window.speechSynthesis.cancel();
   window.speechSynthesis.speak(utter);
@@ -555,6 +575,7 @@ talkBtn.addEventListener('click', () => {
   if (conversationActive) {
     conversationActive = false;
     window.speechSynthesis.cancel();
+    if (speechKeepAliveInterval) { clearInterval(speechKeepAliveInterval); speechKeepAliveInterval = null; }
     recognition.stop();
     setState('idle');
   } else {
