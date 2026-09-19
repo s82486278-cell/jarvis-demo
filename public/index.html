@@ -123,6 +123,29 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="renameModal">
+    <div class="modal-card">
+      <h2>Cambiar nombre</h2>
+      <label class="modal-label">Nombre de la conversación</label>
+      <input type="text" id="renameInput" placeholder="Nueva conversación" />
+      <div class="modal-actions">
+        <button class="modal-cancel" id="renameCancel">Cancelar</button>
+        <button class="modal-save" id="renameSave">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="deleteModal">
+    <div class="modal-card">
+      <h2>Eliminar conversación</h2>
+      <p class="modal-text">Esta acción no se puede deshacer. ¿Seguro que quieres eliminarla?</p>
+      <div class="modal-actions">
+        <button class="modal-cancel" id="deleteCancel">Cancelar</button>
+        <button class="modal-save modal-danger" id="deleteConfirm">Continuar</button>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
