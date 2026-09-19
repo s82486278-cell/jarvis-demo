@@ -61,6 +61,16 @@ html, body {
   color: var(--text-dim);
 }
 
+.top-menu-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px;
+  background: none;
+  border: none;
+  color: var(--blue);
+  cursor: pointer;
+}
+.top-menu-btn:hover { color: var(--blue-bright); }
+
 .readouts {
   display: flex; gap: 20px;
   background: var(--panel);
@@ -105,6 +115,7 @@ html, body {
 }
 
 .status { font-family: var(--mono); font-size: 12px; letter-spacing: 0.16em; color: var(--blue-bright); }
+
 .install-btn {
   display: flex; align-items: center; gap: 7px;
   background: rgba(0, 255, 255, 0.1);
@@ -118,6 +129,7 @@ html, body {
   font-weight: 600;
 }
 .install-btn:hover { background: rgba(0, 255, 255, 0.18); }
+
 .controls { display: flex; flex-direction: column; align-items: center; gap: 12px; }
 
 .talk-btn {
@@ -155,13 +167,6 @@ html, body {
   cursor: pointer;
 }
 .chat-toggle:hover, .replay-voice-btn:hover { color: var(--blue-bright); border-color: var(--blue-dim); background: rgba(0, 255, 255, 0.08); }
-
-.hint {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: rgba(76, 115, 115, 0.6);
-}
-.hint em { color: rgba(0, 255, 255, 0.55); font-style: normal; }
 
 .chat-screen {
   position: fixed;
@@ -297,6 +302,7 @@ html, body {
   padding: 26px 26px 20px;
 }
 .modal-card h2 { margin: 0 0 20px; font-size: 17px; }
+.modal-text { font-size: 13.5px; color: var(--text-dim); line-height: 1.5; margin: 0; }
 .modal-label {
   display: block;
   font-family: var(--mono);
@@ -333,6 +339,8 @@ html, body {
 .modal-cancel:hover { color: var(--text); }
 .modal-save { background: var(--blue); color: #04060B; }
 .modal-save:hover { background: var(--blue-bright); }
+.modal-save.modal-danger { background: #ff5757; color: #1a0000; }
+.modal-save.modal-danger:hover { background: #ff7676; }
 
 .chat-main {
   flex: 1;
