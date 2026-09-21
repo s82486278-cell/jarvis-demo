@@ -116,11 +116,24 @@
       <label class="modal-label">Voz</label>
       <select id="voiceSelect"></select>
 
+      <label class="modal-label">Frase para despertar (opcional)</label>
+      <input type="text" id="wakePhraseInput" placeholder='Ej. "Aeris despierta" o "Buenos días"' />
+
+      <label class="modal-label">Música de fondo al despertar (link de YouTube)</label>
+      <input type="text" id="youtubeInput" placeholder="Pega el link del video de YouTube" />
+
       <div class="modal-actions">
         <button class="modal-cancel" id="settingsCancel">Cancelar</button>
         <button class="modal-save" id="settingsSave">Guardar</button>
       </div>
     </div>
+  </div>
+
+  <div class="yt-player-wrap" id="ytPlayerWrap" hidden>
+    <div id="ytPlayer"></div>
+    <button class="yt-stop-btn" id="ytStopBtn" title="Detener música">
+      <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M6 6h12v12H6z"/></svg>
+    </button>
   </div>
 
   <div class="modal-overlay" id="renameModal">
