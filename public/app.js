@@ -24,13 +24,6 @@ const userNameInput = document.getElementById('userNameInput');
 const voiceSelect = document.getElementById('voiceSelect');
 const settingsCancel = document.getElementById('settingsCancel');
 const settingsSave = document.getElementById('settingsSave');
-const renameModal = document.getElementById('renameModal');
-const renameInput = document.getElementById('renameInput');
-const renameCancel = document.getElementById('renameCancel');
-const renameSave = document.getElementById('renameSave');
-const deleteModal = document.getElementById('deleteModal');
-const deleteCancel = document.getElementById('deleteCancel');
-const deleteConfirm = document.getElementById('deleteConfirm');
 const thread = document.getElementById('thread');
 const stopSpeakingBar = document.getElementById('stopSpeakingBar');
 const stopSpeakingBtn = document.getElementById('stopSpeakingBtn');
@@ -125,62 +118,6 @@ loadSettings();
 function openSettings() { settingsModal.classList.add('open'); populateVoiceOptions(); }
 function closeSettings() { settingsModal.classList.remove('open'); }
 
-// ============ Modal: renombrar conversación ============
-let pendingRenameId = null;
-
-function openRenameModal(id, currentTitle) {
-  pendingRenameId = id;
-  renameInput.value = currentTitle || '';
-  renameModal.classList.add('open');
-  renameInput.focus();
-}
-function closeRenameModal() {
-  renameModal.classList.remove('open');
-  pendingRenameId = null;
-}
-
-renameCancel.addEventListener('click', closeRenameModal);
-renameModal.addEventListener('click', (e) => { if (e.target === renameModal) closeRenameModal(); });
-renameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') renameSave.click(); });
-
-renameSave.addEventListener('click', async () => {
-  if (!pendingRenameId) return;
-  await fetch(`/api/conversations/${pendingRenameId}/rename`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title: renameInput.value }),
-  });
-  closeRenameModal();
-  refreshConversations();
-});
-
-// ============ Modal: eliminar conversación ============
-let pendingDeleteId = null;
-
-function openDeleteModal(id) {
-  pendingDeleteId = id;
-  deleteModal.classList.add('open');
-}
-function closeDeleteModal() {
-  deleteModal.classList.remove('open');
-  pendingDeleteId = null;
-}
-
-deleteCancel.addEventListener('click', closeDeleteModal);
-deleteModal.addEventListener('click', (e) => { if (e.target === deleteModal) closeDeleteModal(); });
-
-deleteConfirm.addEventListener('click', async () => {
-  if (!pendingDeleteId) return;
-  await fetch(`/api/conversations/${pendingDeleteId}`, { method: 'DELETE' });
-  if (String(currentConversationId) === String(pendingDeleteId)) {
-    currentConversationId = null;
-    localStorage.removeItem('aeris_current_conversation');
-    thread.innerHTML = '';
-  }
-  closeDeleteModal();
-  refreshConversations();
-});
-
 settingsBtn.addEventListener('click', openSettings);
 settingsCancel.addEventListener('click', closeSettings);
 settingsModal.addEventListener('click', (e) => { if (e.target === settingsModal) closeSettings(); });
@@ -239,18 +176,32 @@ async function refreshConversations() {
     renameBtn.className = 'conv-icon-btn';
     renameBtn.title = 'Cambiar nombre';
     renameBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
-    renameBtn.addEventListener('click', (e) => {
+    renameBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      openRenameModal(c.id, c.title);
+      const nuevo = prompt('Nuevo nombre para la conversación:', c.title || '');
+      if (nuevo === null) return;
+      await fetch(`/api/conversations/${c.id}/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: nuevo }),
+      });
+      refreshConversations();
     });
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'conv-icon-btn conv-delete';
     deleteBtn.title = 'Eliminar';
     deleteBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M6 7h12l-1 14H7L6 7zm3-4h6l1 2H8l1-2zM4 5h16v2H4z"/></svg>';
-    deleteBtn.addEventListener('click', (e) => {
+    deleteBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      openDeleteModal(c.id);
+      if (!confirm('¿Eliminar esta conversación? No se puede deshacer.')) return;
+      await fetch(`/api/conversations/${c.id}`, { method: 'DELETE' });
+      if (String(currentConversationId) === String(c.id)) {
+        currentConversationId = null;
+        localStorage.removeItem('aeris_current_conversation');
+        thread.innerHTML = '';
+      }
+      refreshConversations();
     });
 
     actions.appendChild(pinBtn);
@@ -402,7 +353,6 @@ function setState(next) {
 
 stopSpeakingBtn.addEventListener('click', () => {
   window.speechSynthesis.cancel();
-  if (speechKeepAliveInterval) { clearInterval(speechKeepAliveInterval); speechKeepAliveInterval = null; }
   setState('idle');
   if (conversationActive) startListening();
 });
@@ -502,8 +452,6 @@ async function sendMessage(text) {
 }
 
 // ============ Voz: síntesis (TTS) ============
-let speechKeepAliveInterval = null;
-
 function speak(rawText) {
   if (!('speechSynthesis' in window)) { setState('idle'); return; }
   const text = cleanForSpeech(rawText);
@@ -519,27 +467,9 @@ function speak(rawText) {
     utter.lang = 'es-MX';
   }
 
-  function stopKeepAlive() {
-    if (speechKeepAliveInterval) {
-      clearInterval(speechKeepAliveInterval);
-      speechKeepAliveInterval = null;
-    }
-  }
-
-  utter.onstart = () => {
-    setState('speaking');
-    // Chrome tiene un bug: corta la voz a los ~15s en frases largas si no la "despiertas".
-    // Truco: pausar y reanudar cada poco evita que se corte.
-    stopKeepAlive();
-    speechKeepAliveInterval = setInterval(() => {
-      if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
-        window.speechSynthesis.pause();
-        window.speechSynthesis.resume();
-      }
-    }, 10000);
-  };
-  utter.onend = () => { stopKeepAlive(); setState('idle'); if (conversationActive) startListening(); };
-  utter.onerror = () => { stopKeepAlive(); setState('idle'); if (conversationActive) startListening(); };
+  utter.onstart = () => setState('speaking');
+  utter.onend = () => { setState('idle'); if (conversationActive) startListening(); };
+  utter.onerror = () => { setState('idle'); if (conversationActive) startListening(); };
 
   window.speechSynthesis.cancel();
   window.speechSynthesis.speak(utter);
@@ -624,7 +554,6 @@ talkBtn.addEventListener('click', () => {
   if (conversationActive) {
     conversationActive = false;
     window.speechSynthesis.cancel();
-    if (speechKeepAliveInterval) { clearInterval(speechKeepAliveInterval); speechKeepAliveInterval = null; }
     recognition.stop();
     setState('idle');
   } else {
