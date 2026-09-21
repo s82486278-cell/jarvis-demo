@@ -28,6 +28,8 @@ async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS assistant_name TEXT NOT NULL DEFAULT 'Aeris';`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS user_display_name TEXT;`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS voice_id TEXT;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS wake_phrase TEXT;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS youtube_track_id TEXT;`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS conversations (
@@ -69,16 +71,16 @@ async function getUserByEmail(email) {
 
 async function getSettings(userId) {
   const { rows } = await pool.query(
-    'SELECT assistant_name, user_display_name, voice_id FROM users WHERE id = $1',
+    'SELECT assistant_name, user_display_name, voice_id, wake_phrase, youtube_track_id FROM users WHERE id = $1',
     [userId]
   );
-  return rows[0] || { assistant_name: 'Aeris', user_display_name: null, voice_id: null };
+  return rows[0] || { assistant_name: 'Aeris', user_display_name: null, voice_id: null, wake_phrase: null, youtube_track_id: null };
 }
 
-async function updateSettings(userId, { assistantName, userDisplayName, voiceId }) {
+async function updateSettings(userId, { assistantName, userDisplayName, voiceId, wakePhrase, youtubeTrackId }) {
   await pool.query(
-    'UPDATE users SET assistant_name = $1, user_display_name = $2, voice_id = $3 WHERE id = $4',
-    [assistantName || 'Aeris', userDisplayName || null, voiceId || null, userId]
+    'UPDATE users SET assistant_name = $1, user_display_name = $2, voice_id = $3, wake_phrase = $4, youtube_track_id = $5 WHERE id = $6',
+    [assistantName || 'Aeris', userDisplayName || null, voiceId || null, wakePhrase || null, youtubeTrackId || null, userId]
   );
 }
 
