@@ -16,9 +16,6 @@ const DEFAULT_VOICE_ID = '21m00Tcm4TlvDq8ikWAM';
 if (!GEMINI_API_KEY) {
   console.warn('⚠️  No se encontró GEMINI_API_KEY. El chat fallará hasta que la configures.');
 }
-if (!ELEVENLABS_API_KEY) {
-  console.warn('⚠️  No se encontró ELEVENLABS_API_KEY. La voz de ElevenLabs no funcionará hasta que la configures.');
-}
 
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
@@ -126,7 +123,13 @@ async function callGemini(contents, systemInstruction) {
 app.get('/api/settings', async (req, res) => {
   try {
     const s = await db.getSettings(req.userId);
-    res.json({ assistantName: s.assistant_name, userDisplayName: s.user_display_name, voiceId: s.voice_id });
+    res.json({
+      assistantName: s.assistant_name,
+      userDisplayName: s.user_display_name,
+      voiceId: s.voice_id,
+      wakePhrase: s.wake_phrase,
+      youtubeTrackId: s.youtube_track_id,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -134,8 +137,8 @@ app.get('/api/settings', async (req, res) => {
 
 app.post('/api/settings', async (req, res) => {
   try {
-    const { assistantName, userDisplayName, voiceId } = req.body || {};
-    await db.updateSettings(req.userId, { assistantName, userDisplayName, voiceId });
+    const { assistantName, userDisplayName, voiceId, wakePhrase, youtubeTrackId } = req.body || {};
+    await db.updateSettings(req.userId, { assistantName, userDisplayName, voiceId, wakePhrase, youtubeTrackId });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
