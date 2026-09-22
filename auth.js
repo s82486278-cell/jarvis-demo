@@ -3,7 +3,6 @@ const crypto = require('crypto');
 const SECRET = process.env.SESSION_SECRET || 'cambia-esto-en-produccion';
 const COOKIE_NAME = 'jarvis_session';
 
-// ---------- Contraseñas ----------
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = crypto.scryptSync(password, salt, 64).toString('hex');
@@ -18,7 +17,6 @@ function verifyPassword(password, stored) {
   return hashBuffer.length === testHash.length && crypto.timingSafeEqual(hashBuffer, testHash);
 }
 
-// ---------- Cookie de sesión (firmada, sin necesitar guardar sesiones en el servidor) ----------
 function sign(userId) {
   return crypto.createHmac('sha256', SECRET).update(String(userId)).digest('hex');
 }
@@ -54,7 +52,6 @@ function getUserId(req) {
   return Number(userId);
 }
 
-// Solo estas rutas HTML/API quedan accesibles sin haber iniciado sesión.
 const PUBLIC_API = new Set(['/api/signup', '/api/login']);
 
 function authMiddleware(req, res, next) {
