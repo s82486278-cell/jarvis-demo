@@ -1,3 +1,36 @@
+// ============ Tema (oscuro/claro) y color de acento ============
+const THEME_KEY = 'aeris_theme';
+const ACCENT_KEY = 'aeris_accent';
+let currentTheme = localStorage.getItem(THEME_KEY) || 'dark';
+let currentAccent = localStorage.getItem(ACCENT_KEY) || 'cyan';
+
+function applyTheme(theme, accent) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.documentElement.setAttribute('data-accent', accent);
+  document.querySelectorAll('.theme-opt').forEach((b) => {
+    b.classList.toggle('active', b.dataset.themeChoice === theme);
+  });
+  document.querySelectorAll('.accent-swatch').forEach((b) => {
+    b.classList.toggle('active', b.dataset.accentChoice === accent);
+  });
+}
+applyTheme(currentTheme, currentAccent);
+
+document.querySelectorAll('.theme-opt').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    currentTheme = btn.dataset.themeChoice;
+    localStorage.setItem(THEME_KEY, currentTheme);
+    applyTheme(currentTheme, currentAccent);
+  });
+});
+document.querySelectorAll('.accent-swatch').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    currentAccent = btn.dataset.accentChoice;
+    localStorage.setItem(ACCENT_KEY, currentAccent);
+    applyTheme(currentTheme, currentAccent);
+  });
+});
+
 // ============ Referencias DOM ============
 const canvas = document.getElementById('orbCanvas');
 const ctx = canvas.getContext('2d');
