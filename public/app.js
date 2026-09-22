@@ -22,8 +22,17 @@ const settingsModal = document.getElementById('settingsModal');
 const assistantNameInput = document.getElementById('assistantNameInput');
 const userNameInput = document.getElementById('userNameInput');
 const voiceSelect = document.getElementById('voiceSelect');
+const wakePhraseInput = document.getElementById('wakePhraseInput');
+const youtubeInput = document.getElementById('youtubeInput');
 const settingsCancel = document.getElementById('settingsCancel');
 const settingsSave = document.getElementById('settingsSave');
+const renameModal = document.getElementById('renameModal');
+const renameInput = document.getElementById('renameInput');
+const renameCancel = document.getElementById('renameCancel');
+const renameSave = document.getElementById('renameSave');
+const deleteModal = document.getElementById('deleteModal');
+const deleteCancel = document.getElementById('deleteCancel');
+const deleteConfirm = document.getElementById('deleteConfirm');
 const thread = document.getElementById('thread');
 const stopSpeakingBar = document.getElementById('stopSpeakingBar');
 const stopSpeakingBtn = document.getElementById('stopSpeakingBtn');
@@ -31,6 +40,8 @@ const composer = document.getElementById('composer');
 const input = document.getElementById('input');
 const memStatusEl = document.getElementById('memStatus');
 const clockEl = document.getElementById('clock');
+const ytPlayerWrap = document.getElementById('ytPlayerWrap');
+const ytStopBtn = document.getElementById('ytStopBtn');
 
 let state = 'idle';
 let conversationActive = false;
@@ -38,6 +49,8 @@ let currentConversationId = localStorage.getItem('aeris_current_conversation') |
 let assistantName = 'Aeris';
 let selectedVoiceURI = localStorage.getItem('aeris_voice_uri') || null;
 let lastReply = '';
+let wakePhrase = '';
+let youtubeTrackRaw = '';
 
 // ============ Reloj y salud ============
 if ('serviceWorker' in navigator) {
@@ -76,7 +89,7 @@ fetch('/api/health').then((r) => r.json()).then((d) => {
   memStatusEl.textContent = d.memory ? 'ACTIVA' : 'INACTIVA';
 }).catch(() => {});
 
-// ============ Configuración (nombre del asistente, cómo te llama, voz) ============
+// ============ Configuración (nombre del asistente, cómo te llama, voz, despertar) ============
 function applyAssistantName(name) {
   assistantName = name || 'Aeris';
   document.querySelectorAll('.brand-name').forEach((el) => { el.textContent = assistantName.toUpperCase(); });
@@ -111,6 +124,10 @@ async function loadSettings() {
     applyAssistantName(data.assistantName);
     assistantNameInput.value = data.assistantName || '';
     userNameInput.value = data.userDisplayName || '';
+    wakePhrase = data.wakePhrase || '';
+    wakePhraseInput.value = wakePhrase;
+    youtubeTrackRaw = data.youtubeTrackId || '';
+    youtubeInput.value = youtubeTrackRaw;
   } catch (_e) { /* si falla, se queda con los valores por defecto */ }
 }
 loadSettings();
@@ -129,10 +146,18 @@ settingsSave.addEventListener('click', async () => {
   if (selectedVoiceURI) localStorage.setItem('aeris_voice_uri', selectedVoiceURI);
   else localStorage.removeItem('aeris_voice_uri');
 
+  wakePhrase = wakePhraseInput.value.trim();
+  youtubeTrackRaw = youtubeInput.value.trim();
+
   await fetch('/api/settings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ assistantName: newAssistantName, userDisplayName: newUserName }),
+    body: JSON.stringify({
+      assistantName: newAssistantName,
+      userDisplayName: newUserName,
+      wakePhrase,
+      youtubeTrackId: youtubeTrackRaw,
+    }),
   });
   applyAssistantName(newAssistantName);
   closeSettings();
@@ -141,6 +166,62 @@ settingsSave.addEventListener('click', async () => {
 logoutBtn.addEventListener('click', async () => {
   await fetch('/api/logout', { method: 'POST' });
   window.location.href = '/login.html';
+});
+
+// ============ Modal: renombrar conversación ============
+let pendingRenameId = null;
+
+function openRenameModal(id, currentTitle) {
+  pendingRenameId = id;
+  renameInput.value = currentTitle || '';
+  renameModal.classList.add('open');
+  renameInput.focus();
+}
+function closeRenameModal() {
+  renameModal.classList.remove('open');
+  pendingRenameId = null;
+}
+
+renameCancel.addEventListener('click', closeRenameModal);
+renameModal.addEventListener('click', (e) => { if (e.target === renameModal) closeRenameModal(); });
+renameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') renameSave.click(); });
+
+renameSave.addEventListener('click', async () => {
+  if (!pendingRenameId) return;
+  await fetch(`/api/conversations/${pendingRenameId}/rename`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: renameInput.value }),
+  });
+  closeRenameModal();
+  refreshConversations();
+});
+
+// ============ Modal: eliminar conversación ============
+let pendingDeleteId = null;
+
+function openDeleteModal(id) {
+  pendingDeleteId = id;
+  deleteModal.classList.add('open');
+}
+function closeDeleteModal() {
+  deleteModal.classList.remove('open');
+  pendingDeleteId = null;
+}
+
+deleteCancel.addEventListener('click', closeDeleteModal);
+deleteModal.addEventListener('click', (e) => { if (e.target === deleteModal) closeDeleteModal(); });
+
+deleteConfirm.addEventListener('click', async () => {
+  if (!pendingDeleteId) return;
+  await fetch(`/api/conversations/${pendingDeleteId}`, { method: 'DELETE' });
+  if (String(currentConversationId) === String(pendingDeleteId)) {
+    currentConversationId = null;
+    localStorage.removeItem('aeris_current_conversation');
+    thread.innerHTML = '';
+  }
+  closeDeleteModal();
+  refreshConversations();
 });
 
 // ============ Conversaciones ============
@@ -176,32 +257,18 @@ async function refreshConversations() {
     renameBtn.className = 'conv-icon-btn';
     renameBtn.title = 'Cambiar nombre';
     renameBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
-    renameBtn.addEventListener('click', async (e) => {
+    renameBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const nuevo = prompt('Nuevo nombre para la conversación:', c.title || '');
-      if (nuevo === null) return;
-      await fetch(`/api/conversations/${c.id}/rename`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: nuevo }),
-      });
-      refreshConversations();
+      openRenameModal(c.id, c.title);
     });
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'conv-icon-btn conv-delete';
     deleteBtn.title = 'Eliminar';
     deleteBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M6 7h12l-1 14H7L6 7zm3-4h6l1 2H8l1-2zM4 5h16v2H4z"/></svg>';
-    deleteBtn.addEventListener('click', async (e) => {
+    deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (!confirm('¿Eliminar esta conversación? No se puede deshacer.')) return;
-      await fetch(`/api/conversations/${c.id}`, { method: 'DELETE' });
-      if (String(currentConversationId) === String(c.id)) {
-        currentConversationId = null;
-        localStorage.removeItem('aeris_current_conversation');
-        thread.innerHTML = '';
-      }
-      refreshConversations();
+      openDeleteModal(c.id);
     });
 
     actions.appendChild(pinBtn);
@@ -353,6 +420,7 @@ function setState(next) {
 
 stopSpeakingBtn.addEventListener('click', () => {
   window.speechSynthesis.cancel();
+  if (speechKeepAliveInterval) { clearInterval(speechKeepAliveInterval); speechKeepAliveInterval = null; }
   setState('idle');
   if (conversationActive) startListening();
 });
@@ -452,6 +520,8 @@ async function sendMessage(text) {
 }
 
 // ============ Voz: síntesis (TTS) ============
+let speechKeepAliveInterval = null;
+
 function speak(rawText) {
   if (!('speechSynthesis' in window)) { setState('idle'); return; }
   const text = cleanForSpeech(rawText);
@@ -467,12 +537,107 @@ function speak(rawText) {
     utter.lang = 'es-MX';
   }
 
-  utter.onstart = () => setState('speaking');
-  utter.onend = () => { setState('idle'); if (conversationActive) startListening(); };
-  utter.onerror = () => { setState('idle'); if (conversationActive) startListening(); };
+  function stopKeepAlive() {
+    if (speechKeepAliveInterval) {
+      clearInterval(speechKeepAliveInterval);
+      speechKeepAliveInterval = null;
+    }
+  }
+
+  utter.onstart = () => {
+    setState('speaking');
+    stopKeepAlive();
+    speechKeepAliveInterval = setInterval(() => {
+      if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+        window.speechSynthesis.pause();
+        window.speechSynthesis.resume();
+      }
+    }, 10000);
+  };
+  utter.onend = () => { stopKeepAlive(); setState('idle'); if (conversationActive) startListening(); };
+  utter.onerror = () => { stopKeepAlive(); setState('idle'); if (conversationActive) startListening(); };
 
   window.speechSynthesis.cancel();
   window.speechSynthesis.speak(utter);
+}
+
+// ============ Música de fondo al despertar (YouTube) ============
+let ytPlayer = null;
+let ytApiReady = false;
+let ytPendingVideoId = null;
+
+function extractYouTubeId(input) {
+  if (!input) return null;
+  const trimmed = input.trim();
+  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
+  const match = trimmed.match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/)([a-zA-Z0-9_-]{11})/);
+  return match ? match[1] : null;
+}
+
+function loadYouTubeApiIfNeeded() {
+  if (window.YT && window.YT.Player) { ytApiReady = true; return; }
+  if (document.getElementById('ytApiScript')) return;
+  const tag = document.createElement('script');
+  tag.id = 'ytApiScript';
+  tag.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(tag);
+}
+window.onYouTubeIframeAPIReady = () => {
+  ytApiReady = true;
+  if (ytPendingVideoId) {
+    const id = ytPendingVideoId;
+    ytPendingVideoId = null;
+    playYouTubeTrack(id);
+  }
+};
+
+function playYouTubeTrack(videoId) {
+  ytPlayerWrap.hidden = false;
+  if (!ytApiReady) {
+    loadYouTubeApiIfNeeded();
+    ytPendingVideoId = videoId;
+    return;
+  }
+  if (ytPlayer) {
+    ytPlayer.loadVideoById(videoId);
+  } else {
+    ytPlayer = new YT.Player('ytPlayer', {
+      videoId,
+      playerVars: { autoplay: 1, playsinline: 1 },
+    });
+  }
+}
+
+ytStopBtn.addEventListener('click', () => {
+  if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
+  ytPlayerWrap.hidden = true;
+});
+
+// ============ Frase para despertar ============
+function normalizePhrase(str) {
+  return str
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s]/g, '')
+    .trim();
+}
+
+function checkWakePhrase(transcript) {
+  if (!wakePhrase) return false;
+  return normalizePhrase(transcript).includes(normalizePhrase(wakePhrase));
+}
+
+function triggerWakeRoutine() {
+  loadYouTubeApiIfNeeded();
+  const videoId = extractYouTubeId(youtubeTrackRaw);
+  if (videoId) playYouTubeTrack(videoId);
+
+  const hour = new Date().getHours();
+  const saludo = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches';
+  const msg = `${saludo}. Sistemas en línea. ¿En qué trabajamos hoy?`;
+  addMessage('model', msg);
+  lastReply = msg;
+  speak(msg);
 }
 
 // ============ Voz: reconocimiento (STT) ============
@@ -486,7 +651,14 @@ if (SpeechRecognition) {
   recognition.maxAlternatives = 1;
 
   recognition.onstart = () => setState('listening');
-  recognition.onresult = (event) => sendMessage(event.results[0][0].transcript);
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    if (checkWakePhrase(transcript)) {
+      triggerWakeRoutine();
+    } else {
+      sendMessage(transcript);
+    }
+  };
   recognition.onerror = (event) => {
     if (event.error === 'no-speech' && conversationActive) {
       startListening();
@@ -523,7 +695,6 @@ async function initClapDetector() {
     monitorClap();
   } catch (_e) {
     // Si no hay permiso de micrófono todavía, simplemente no se activa por aplauso
-    // (sigue funcionando el botón normal).
   }
 }
 
@@ -554,6 +725,7 @@ talkBtn.addEventListener('click', () => {
   if (conversationActive) {
     conversationActive = false;
     window.speechSynthesis.cancel();
+    if (speechKeepAliveInterval) { clearInterval(speechKeepAliveInterval); speechKeepAliveInterval = null; }
     recognition.stop();
     setState('idle');
   } else {
