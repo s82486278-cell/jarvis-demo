@@ -13,8 +13,9 @@ function applyTheme(theme, accent) {
   document.querySelectorAll('.accent-swatch').forEach((b) => {
     b.classList.toggle('active', b.dataset.accentChoice === accent);
   });
+  updateOrbColors(accent);
 }
-applyTheme(currentTheme, currentAccent);
+// (la primera llamada a applyTheme() se hace más abajo, después de definir los colores del orbe)
 
 document.querySelectorAll('.theme-opt').forEach((btn) => {
   btn.addEventListener('click', () => {
@@ -397,12 +398,38 @@ const POINTS = fibonacciSphere(900);
 let angle = 0;
 let t = 0;
 
-const STATE_STYLE = {
-  idle: { color: [0, 220, 220], speed: 0.0025, ampBase: 0.02, ampWave: 0.01, glow: 0.35 },
-  listening: { color: [0, 255, 255], speed: 0.008, ampBase: 0.05, ampWave: 0.05, glow: 0.6 },
-  thinking: { color: [90, 255, 255], speed: 0.02, ampBase: 0.03, ampWave: 0.02, glow: 0.55 },
-  speaking: { color: [0, 255, 255], speed: 0.01, ampBase: 0.07, ampWave: 0.06, glow: 0.75 },
+// Mismos colores que los acentos del CSS (--accent-rgb), para que el orbe combine.
+const ACCENT_PALETTES = {
+  cyan: [0, 255, 255],
+  pink: [255, 46, 154],
+  blue: [61, 107, 255],
+  green: [57, 255, 20],
+  purple: [177, 78, 255],
+  orange: [255, 138, 30],
 };
+
+function mixWithWhite(rgb, amount) {
+  return rgb.map((c) => Math.round(c + (255 - c) * amount));
+}
+
+function computeStateStyle(rgb) {
+  return {
+    idle: { color: mixWithWhite(rgb, 0.12), speed: 0.0025, ampBase: 0.02, ampWave: 0.01, glow: 0.35 },
+    listening: { color: rgb, speed: 0.008, ampBase: 0.05, ampWave: 0.05, glow: 0.6 },
+    thinking: { color: mixWithWhite(rgb, 0.35), speed: 0.02, ampBase: 0.03, ampWave: 0.02, glow: 0.55 },
+    speaking: { color: rgb, speed: 0.01, ampBase: 0.07, ampWave: 0.06, glow: 0.75 },
+  };
+}
+
+let STATE_STYLE = computeStateStyle(ACCENT_PALETTES[currentAccent] || ACCENT_PALETTES.cyan);
+
+function updateOrbColors(accent) {
+  STATE_STYLE = computeStateStyle(ACCENT_PALETTES[accent] || ACCENT_PALETTES.cyan);
+}
+
+// Ahora que ya existen los colores del orbe, aplicamos el tema guardado (esto también
+// pinta los botones de Configuración y deja el orbe con el color de acento correcto).
+applyTheme(currentTheme, currentAccent);
 
 function draw() {
   const size = canvas.clientWidth || 420;
